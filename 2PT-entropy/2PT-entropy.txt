@@ -1,0 +1,27 @@
+2PT方法计算熵和自由能
+实现功能：计算水结构的熵和自由能
+参考文献：[1] Lin S, Blanco M, Goddard W. The two-phase model for calculating thermodynamic properties of liquids from molecular dynamics: Validation for the phase diagram of Lennard-Jones fluids [J]. Journal of Chemical Physics, 2003, 119(22): 11792-805.; [2] Lin S, Maiti P, Goddard III W. Two-phase thermodynamic model for efficient and accurate absolute entropy of water from molecular dynamics simulations [J]. The Journal of Physical Chemistry B, 2010, 114(24): 8191-198.
+需添加的程序库：来自Shiang-Tai Lin 教授研究组的2PT代码程序
+!-------------------------------------------------------
+! By Shuping Jiao,@THU,Aug 2015
+!-------------------------------------------------------
+2PT程序是通过分子动力学模拟得到的原子轨迹信息来计算凝聚态系统的热力学性质的方法程序。该方法要求所计算的系统为平衡态系统或者准平衡态系统。支持多种分子动力学模拟软件的轨迹文件输出格式，如LAMMPS、AMBER、CHARMM、Material Studios等，轨迹文件需要包括原子的坐标及速度信息。2PT方法通过计算原子速度的自相关函数的Fourier变换得到系统的态密度函数 (density of state, DoS)，并将系统的态密度函数分为扩散项和振动项这两部分的贡献。液相的DoS函数兼有固相和气相的Dos函数的特征，在2PT方法中通过推导系统的流体性参数f来定量确定任意系统的类固体性质和类气体性质的比重，并分别通过固相理论和气相理论计算这两部分对热力学性质物理量的贡献，从而在整个相图空间中 (包括气相、液相、固相和混合相) 都能定量正确计算系统的热力学性质。
+程序的输入文件包括原子拓扑信息文件 (如LAMMPS的data文件)、原子轨迹文件、轨迹文件使用频率、时间步长及系统的压强、温度、内能和系统分子对称元素等。对于柔性的水分子势模型通常以2 fs/帧的频率存储水系统的原子运动轨迹信息，对于刚体水分子势模型通常以4 fs/帧的频率存储。对于凝聚态的系统，至少需要5000帧轨迹信息，而对于气态的系统，通常需要更长时间的轨迹信息确保系统原子历经充分的碰撞，如约100 ps。以下将给出结合LAMMPS软件模拟结果的水分子系统的2PT程序输入文件形式。
+输出文件信息包括热力学性质物理量如系统的熵、Helmholtz自由能、零点能、热容、扩散系数等，并详细给出分子平动、转动及振动部分的贡献。另外还给出计算热力学性质物理量过程中产生的速度自相关函数、态密度等。
+计算热平衡的水系统的水分子系统的2PT程序输入文件如下：
+IN_LMPDATA  water.data ! 以LAMMPS的data文件格式输入原子类型、序号、拓扑等结构信息
+IN_LMPTRJ    water.trj  ! 输入水分子轨迹文件
+ANALYSIS_FRAME_INITIAL        12500 ! 从该步开始使用坐标文件
+ANALYSIS_FRAME_FINAL          0 ! 0代表使用到轨迹文件的最后一帧
+ANALYSIS_FRAME_STEP           1 ! 选取使用数据的帧数间隔
+ANALYSIS_VAC_CORLENGTH      0.5
+ANALYSIS_VAC_MEMORYMB      10500
+ANALYSIS_VAC_2PT               3
+ANALYSIS_OUT                  test.2pt.mol ! 包括熵和自由能等信息的输出文件
+ANALYSIS_LMP_TSTEP           0.001 ! 模拟时间步长，单位ps
+ANALYSIS_VAC_LINEAR_MOL	    0
+ANALYSIS_VAC_ROTN_SYMMETRY 2 ! 分子空间对称元素
+ANALYSIS_VAC_FIXED_DF        345 ! 对系统分子的自由度限制总数 (如fix shake) 
+MD_AVGTEMPERATURE	       300 ! 模拟温度，单位K
+MD_AVGPRESSURE		           1  ! 模拟压强，单位GPa
+MD_AVGENERGY                 -4533.50505 ! 系统内能
