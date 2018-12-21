@@ -1,0 +1,92 @@
+!实现功能：计算界面摩擦力自相关函数
+!参考文献：王艳磊. 低维材料及其界面的热输运机制与模型研究[博士学位论文]. 北京：清华大学，2017.
+!https://software.intel.com/en-us/mkl-developer-reference-fortran-configuring-and-computing-an-fft-in-fortran#8CC5E00C-E8D0-4A7A-8AA8-A4BF269A22A3
+!语言：FORTRAN
+!需添加的数据库：intel fortran MKL (Math Kernel Library) 中的MKL_DFTI模块
+!-------------------------------------------------------
+! FACF_FFT: calculate Friction Autocorrelation Function via FFT
+! By Yanlei Wang,@THU,Mar 2013
+! Revised by Shuping Jiao,@THU,Mar 2015
+!-------------------------------------------------------
+! 需要添加的数据库中的模块： 
+program main
+!----------------------------------------------------
+! 调用intel fortran库中FFT相关函数，进行一维 FFT 变换:
+! 包括FFT正向变换和FFT反向变换
+!----------------------------------------------------
+Use MKL_DFTI ! 调用intel fortran MKL的FFT相关模块，即mkl_dfti.f90文件中MKL_DFTI模块
+    
+implicit none  
+integer,parameter::num=1E6 ! 数据的总量
+double complex,allocatable :: X_in(:) ! 正向FFT的输入量
+double complex,allocatable :: X_out(:) ! 正向FFT的输出量
+double complex,allocatable :: inverX_in(:) ! 反向FFT的输入量
+double complex,allocatable :: inverX_out(:) ! 反向FFT的输出量
+double precision,allocatable :: autofx(:) ! 界面摩擦力的自相关函数结果
+type(DFTI_DESCRIPTOR), POINTER :: fft_handle,ifft_handle ! 正向和反向FFT需要的指针
+Integer :: Status ! 正向和反向FFT过程的状态检查量
+double precision:: x,y,norm
+double precision::x1tmp,x2tmp 
+integer::i,j,k
+integer::m,p ! 根据数据总量，计算得到的FFT需要的数组长度
+    
+! 计算FFT过程中需要设定的数组的长度
+! 根据数组长度，分配对应的输入量、输出量以及自相关函数结果的空间
+m=ceiling( log10(1.d0*num*2.d0-1.d0)/log10(2.d0) )
+p=2**m    
+allocate(X_in(p))
+allocate(X_out(p))
+allocate(inverX_in(p))
+allocate(inverX_out(p))
+allocate(autofx(p))
+
+! 读取界面摩擦力数据
+write(*,*)'---read the data---'
+X_in = 0.d0
+open(11, file = 'friction.out')
+do i = 1, num
+read(11,*)x1tmp
+X_in(i) = cmplx(x1tmp, 0.d0)
+end do
+close(11)
+write(*,*)'---read the data done!---'
+! 进行正向的FFT变换
+write(*,*)'---Conducting forward fourier transformation!---'
+Status = DftiCreateDescriptor(fft_handle, DFTI_DOUBLE, DFTI_COMPLEX, 1, p)
+Status = DftiSetValue(fft_handle, DFTI_PLACEMENT, DFTI_NOT_INPLACE)
+Status = DftiCommitDescriptor(fft_handle)
+Status = DftiComputeForward(fft_handle, X_in, X_out)
+Status = DftiFreeDescriptor(fft_handle)
+    
+! 对正向FFT变换的结果进行处理，赋值给反向FFT为输入量
+do i=1,p
+    x=real(X_out(i))
+    y=aimag(X_out(i))
+    norm=x*x+y*y
+    inverX_in(i)=norm
+end do
+
+! 进行反向的FFT变换
+write(*,*)'---Conducting backword fourier transformation!---'
+Status = DftiCreateDescriptor(ifft_handle, DFTI_DOUBLE,  DFTI_COMPLEX, 1, p)
+Status = DftiSetValue(ifft_handle, DFTI_PLACEMENT, DFTI_NOT_INPLACE)
+Status = DftiCommitDescriptor(ifft_handle)
+Status = DftiComputeBackward(ifft_handle, inverX_in, inverX_out)
+Status = DftiFreeDescriptor(ifft_handle)
+
+! 对反向FFT的输出量进行处理，得到自相关函数结果
+do i=1,p
+    autofx(i)=real(inverX_out(i))/p
+end do
+do i=1,num
+    autofx(i)=autofx(i)/dble(num+1-i)
+end do
+    
+! 输出自相关函数的结果
+write(*,*)'--inverX_out--'
+open(22,file = 'mkl_fft_test.dat')
+do i =1,num
+    write(22,*)autofx(i)
+end do
+close(22)
+end program main
